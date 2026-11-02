@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cente - Python 托管中心</title>
+  <link rel="icon" type="image/png" href="icon.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="theme-obsidian">
+  <div class="app-container">
+    <!-- 顶部全局导航栏 -->
+    <header class="app-header" data-tauri-drag-region>
+      <div class="header-left" data-tauri-drag-region>
+        <div class="brand" data-tauri-drag-region>
+          <img src="icon.png" class="brand-logo-img" alt="Cente">
+          <div class="brand-text" data-tauri-drag-region>
+            <h1>Cente</h1>
+            <span class="subtitle">Python 托管中心</span>
+          </div>
+        </div>
+        <div class="total-badge" id="totalProjectsBadge">项目总数 <b id="totalProjectsCount">0</b></div>
+      </div>
+
+      <div class="header-center" data-tauri-drag-region>
+        <div class="search-box-wrap">
+          <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <input type="text" id="searchInput" placeholder="搜索项目名称..." autocomplete="off">
+          <kbd class="shortcut-kbd">Ctrl K</kbd>
+        </div>
+      </div>
+
+      <div class="header-right">
+        <button class="btn btn-icon" id="btnGlobalSettings" title="全局设置" aria-label="全局设置" aria-haspopup="dialog">
+          <svg class="btn-svg" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 17h16"/><rect x="8" y="4" width="4" height="6" rx="1" fill="var(--bg-header)"/><rect x="14" y="14" width="4" height="6" rx="1" fill="var(--bg-header)"/></svg>
+        </button>
+        <button class="btn btn-primary" id="btnAddProject">
+          <svg class="btn-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+          添加项目
+        </button>
+        <button class="btn btn-outline" id="btnStartAll" title="一键启动所有已停止项目">
+          <svg class="btn-svg" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+          全部启动
+        </button>
+        <button class="btn btn-outline" id="btnStopAll" title="一键停止所有运行中项目">
+          <svg class="btn-svg" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h12v12H6z"/></svg>
+          全部停止
+        </button>
+        
+        <div class="dropdown-wrap">
+          <button class="btn btn-icon" id="btnGlobalMore" title="更多操作">
+            <svg class="btn-svg" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/><circle cx="5" cy="12" r="2"/></svg>
+          </button>
+          <div class="dropdown-menu" id="globalMoreMenu" onclick="event.stopPropagation()">
+            <div class="dropdown-item" onclick="closeAllDropdowns(); openLogsDir()">
+              <svg class="dropdown-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+              打开全局日志目录
+            </div>
+            <div class="dropdown-item" onclick="closeAllDropdowns(); refreshProjects()">
+              <svg class="dropdown-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+              刷新所有项目状态
+            </div>
+            <div class="dropdown-divider"></div>
+            <div class="dropdown-item" onclick="closeAllDropdowns(); invoke('hide_window')">
+              <svg class="dropdown-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/></svg>
+              最小化至系统托盘
+            </div>
+          </div>
+        </div>
+
+        <div class="window-controls">
+          <button class="win-btn" id="btnMinimize" title="最小化至托盘">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
+          <button class="win-btn win-close" id="btnCloseApp" title="关闭窗口 (保持后台运行)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- 主体双栏区域 (Master-Detail) -->
+    <div class="app-workspace">
+      <!-- 左侧边栏：项目列表 -->
+      <aside class="sidebar-panel">
+        <div class="sidebar-header">
+          <div class="sidebar-title">
+            <span>项目列表</span>
+            <span class="count-badge" id="sidebarListCount">(0)</span>
+          </div>
+          <div class="sidebar-actions">
+            <select class="sort-select" id="sortSelect" onchange="handleSortChange(this.value)">
+              <option value="name">按名称排序</option>
+              <option value="status">按状态排序</option>
+            </select>
+            <button class="btn-ghost-density" title="列表视图">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- 列表容器 -->
+        <div class="sidebar-project-list" id="sidebarProjectList">
+          <!-- 动态项目列表项 -->
+        </div>
+
+        <div class="sidebar-empty" id="sidebarEmpty" style="display: none;">
+          <p>暂无符合的项目</p>
+        </div>
+      </aside>
+
+      <!-- 右侧主体：选中项目的详情与工作台 -->
+      <main class="detail-panel" id="detailPanel">
+        <!-- 未选中项目时的默认提示 -->
+        <div class="detail-empty-state" id="detailEmptyState" style="display: none;">
+          <div class="empty-icon-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          </div>
+          <h3>选择一个项目查看详情</h3>
+          <p>在左侧列表中点击任意项目，即可在此查看实时运行监控、项目配置与控制台日志</p>
+          <button class="btn btn-primary" onclick="openAddModal()">添加新项目</button>
+        </div>
+
+        <!-- 项目详情主界面 -->
+        <div class="detail-content" id="detailContent">
+          <!-- 顶部项目概要横幅 -->
+          <div class="hero-section">
+            <div class="hero-left">
+              <div class="hero-folder-icon" id="heroFolderIcon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+              </div>
+              <div class="hero-info">
+                <div class="hero-title-row">
+                  <h2 class="hero-project-name" id="heroProjectName">notion</h2>
+                  <span class="status-pill running" id="heroStatusPill">
+                    <span class="pill-dot"></span>
+                    <span id="heroStatusText">运行中</span>
+                  </span>
+                </div>
+                <div class="hero-path-row" title="点击复制路径" onclick="copyHeroPath()">
+                  <span class="hero-path-text" id="heroPathText">E:\code\notion</span>
+                  <button class="btn-copy-icon" title="复制路径">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="hero-right">
+              <div class="hero-actions" id="heroActions">
+                <!-- 动态填充：停止/启动、重启、更多 -->
+              </div>
+            </div>
+          </div>
+
+          <!-- 四个状态监控指标卡片 -->
+          <div class="metrics-grid">
+            <!-- 卡片 1: 启动脚本/入口 -->
+            <div class="metric-card">
+              <div class="metric-icon-wrap icon-script">
+                <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4"/></svg>
+              </div>
+              <div class="metric-info">
+                <span class="metric-label">启动脚本 / 入口</span>
+                <div class="metric-val-row">
+                  <span class="metric-value mono" id="metricEntry">start.bat</span>
+                  <button class="btn-copy-mini" title="复制命令" onclick="copyText(document.getElementById('metricEntry').textContent)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- 卡片 2: 运行时长 -->
+            <div class="metric-card">
+              <div class="metric-icon-wrap icon-time">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              </div>
+              <div class="metric-info">
+                <span class="metric-label">运行时长</span>
+                <span class="metric-value highlight" id="metricUptime">--</span>
+              </div>
+            </div>
+
+            <!-- 卡片 3: 进程 PID -->
+            <div class="metric-card">
+              <div class="metric-icon-wrap icon-pid">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+              </div>
+              <div class="metric-info">
+                <span class="metric-label">进程 PID</span>
+                <span class="metric-value mono" id="metricPid">-</span>
+              </div>
+            </div>
+
+            <!-- 卡片 4: 当前状态 -->
+            <div class="metric-card">
+              <div class="metric-icon-wrap icon-status">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+              </div>
+              <div class="metric-info">
+                <span class="metric-label">当前状态</span>
+                <div class="metric-status-col">
+                  <div class="metric-status-row">
+                    <span class="status-indicator-dot running" id="metricStatusDot"></span>
+                    <span class="metric-value-status" id="metricStatusText">运行中</span>
+                  </div>
+                  <span class="metric-sub-status" id="metricSubStatusText">运行正常</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 选项卡与控制台工具栏 -->
+          <div class="tabs-and-toolbar">
+            <div class="tab-nav">
+              <button class="tab-btn active" id="tabBtnLogs" onclick="switchDetailTab('logs')">
+                <svg class="tab-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                运行日志
+              </button>
+              <button class="tab-btn" id="tabBtnConfig" onclick="switchDetailTab('config')">
+                <svg class="tab-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                项目配置
+              </button>
+              <button class="tab-btn" id="tabBtnEnv" onclick="switchDetailTab('env')">
+                <span class="code-bracket-tag">{ }</span>
+                环境变量
+              </button>
+            </div>
+
+            <div class="tab-toolbar" id="logsToolbar">
+              <button class="btn btn-pill-stream" id="btnStreamToggle" onclick="toggleAutoScroll()">
+                <span class="live-pulse"></span>
+                <span>实时日志</span>
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+              </button>
+              <button class="btn btn-outline btn-xs" onclick="clearConsoleLog()">
+                <svg class="btn-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                清空
+              </button>
+              <button class="btn btn-outline btn-xs" onclick="openExternalLogFile()">
+                <svg class="btn-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                下载日志
+              </button>
+            </div>
+          </div>
+
+          <!-- 选项卡 1：运行日志终端视图 -->
+          <div class="tab-panel active" id="panelLogs">
+            <div class="terminal-container" id="terminalContainer">
+              <div class="terminal-quick-tools">
+                <div class="terminal-search-wrap" id="termSearchWrap" style="display: none;">
+                  <input type="text" id="logFilterInput" placeholder="过滤当前日志内容..." oninput="handleLogFilter(this.value)">
+                </div>
+                <div class="terminal-buttons">
+                  <button class="tool-btn" title="搜索日志" onclick="toggleLogSearch()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                  </button>
+                  <button class="tool-btn" title="复制全部日志" onclick="copyAllLogs()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                  </button>
+                  <button class="tool-btn" title="全屏查看" onclick="toggleTerminalFullscreen()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+                  </button>
+                </div>
+              </div>
+
+              <!-- 终端控制台回显 -->
+              <div class="terminal-body" id="terminalBody">
+                <div class="log-lines-stream" id="logLinesStream">
+                  <!-- 行号与日志条目 -->
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 选项卡 2：内嵌项目配置 -->
+          <div class="tab-panel" id="panelConfig" style="display: none;">
+            <div class="config-card">
+              <form id="inlineConfigForm" onsubmit="event.preventDefault(); saveInlineConfig();">
+                <div class="form-row">
+                  <div class="form-group col">
+                    <label>项目名称</label>
+                    <input type="text" id="inlineName" class="form-control" required>
+                  </div>
+                  <div class="form-group col">
+                    <label>入口文件 / 脚本</label>
+                    <input type="text" id="inlineEntry" class="form-control" required>
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label>项目根目录</label>
+                  <div class="input-with-btn">
+                    <input type="text" id="inlinePath" class="form-control" required>
+                    <button type="button" class="btn btn-secondary" onclick="browseInlineDir()">浏览...</button>
+                  </div>
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group col">
+                    <label>Python 解释器路径 (留空使用 .venv)</label>
+                    <input type="text" id="inlinePython" class="form-control">
+                  </div>
+                  <div class="form-group col">
+                    <label>运行参数 (Args，可选)</label>
+                    <input type="text" id="inlineArgs" class="form-control">
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label>项目个性化图标 <span class="field-desc">（基于 Lucide 极简矢量图标集，精心配色）</span></label>
+                  <div class="icon-picker-grid" id="inlineIconPicker"></div>
+                  <input type="hidden" id="inlineIcon" value="folder">
+                </div>
+
+          <div class="form-group">
+            <label for="inlineAccessUrl">访问地址（可选）</label>
+            <input type="url" id="inlineAccessUrl" class="form-control" placeholder="例如：http://localhost:8000" aria-describedby="inlineAccessUrlHint">
+            <div class="field-hint" id="inlineAccessUrlHint">用于托盘项目点击和“立即访问”，支持 HTTP / HTTPS。</div>
+          </div>
+
+          <div class="form-group">
+            <div class="settings-row">
+              <div class="settings-copy">
+                <label for="inlineShowInTray">显示在托盘菜单</label>
+                <p id="inlineShowInTrayHint">默认显示。关闭后隐藏托盘右键菜单中的此项目，仍可在主界面管理。保存后生效。</p>
+              </div>
+              <input type="checkbox" role="switch" class="settings-switch project-tray-switch" id="inlineShowInTray" aria-describedby="inlineShowInTrayHint" checked>
+            </div>
+          </div>
+
+                <div class="config-actions">
+                  <button type="submit" class="btn btn-primary">保存配置</button>
+                </div>
+              </form>
+            </div>
+          </div>
+
+          <!-- 选项卡 3：环境变量 -->
+          <div class="tab-panel" id="panelEnv" style="display: none;">
+            <div class="config-card">
+              <div class="env-header">
+                <p>为当前项目注入运行环境变量（进程启动时生效）：</p>
+                <button type="button" class="btn btn-outline btn-xs" onclick="addEnvRow()">+ 添加变量</button>
+              </div>
+              <div class="env-list" id="envListContainer">
+                <!-- 环境变量键值对 -->
+              </div>
+              <div class="config-actions">
+                <button type="button" class="btn btn-primary" onclick="saveEnvVars()">保存环境变量</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <!-- 添加/编辑项目弹窗 -->
+  <div class="modal-overlay" id="projectModal" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="modalTitle">添加 Python 项目</h3>
+        <button class="close-btn" onclick="closeProjectModal()">×</button>
+      </div>
+      <div class="modal-body">
+        <form id="projectForm" onsubmit="event.preventDefault(); saveProject();">
+          <input type="hidden" id="formProjectId">
+          
+          <div class="form-group">
+            <label>启动脚本 / 入口文件 <span class="required">*</span></label>
+            <div class="input-with-btn">
+              <input type="text" id="formEntry" class="form-control" placeholder="例如：start.bat 或 run.py" required>
+              <button type="button" class="btn btn-primary" id="btnBrowseScript" title="点击直接选择启动脚本文件">选择启动脚本...</button>
+            </div>
+            <div class="field-hint" id="scriptSelectionHint">💡 提示：可直接选择启动脚本（.bat / .cmd / .ps1 / .py / .exe），将自动解析并填写项目目录与名称</div>
+          </div>
+
+          <div class="form-group">
+            <label>项目根目录 <span class="required">*</span></label>
+            <div class="input-with-btn">
+              <input type="text" id="formPath" class="form-control" placeholder="例如：E:\code\notion" required>
+              <button type="button" class="btn btn-secondary" id="btnBrowseDir">选择目录...</button>
+            </div>
+            <div class="field-hint" id="dirDetectionHint"></div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group col">
+              <label>项目名称 <span class="required">*</span></label>
+              <input type="text" id="formName" class="form-control" placeholder="例如：notion-service" required>
+            </div>
+            <div class="form-group col">
+              <label>Python 解释器路径 (可选)</label>
+              <input type="text" id="formPython" class="form-control" placeholder="脚本启动无需填写；.py 留空默认使用 .venv">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>项目个性化图标 <span class="field-desc">（基于 Lucide 极简矢量图标集，精心配色）</span></label>
+            <div class="icon-picker-grid" id="modalIconPicker"></div>
+            <input type="hidden" id="formIcon" value="folder">
+          </div>
+
+          <div class="form-group">
+            <label>运行参数 (Args，可选)</label>
+            <input type="text" id="formArgs" class="form-control" placeholder="例如：--port 8000 --reload">
+          </div>
+
+          <div class="form-group">
+            <label for="formAccessUrl">访问地址（可选）</label>
+            <input type="url" id="formAccessUrl" class="form-control" placeholder="例如：http://localhost:8000" aria-describedby="formAccessUrlHint">
+            <div class="field-hint" id="formAccessUrlHint">用于托盘项目点击和“立即访问”，支持 HTTP / HTTPS。</div>
+          </div>
+
+          <div class="form-group">
+            <div class="settings-row">
+              <div class="settings-copy">
+                <label for="formShowInTray">显示在托盘菜单</label>
+                <p id="formShowInTrayHint">默认显示。关闭后隐藏托盘右键菜单中的此项目，仍可在主界面管理。保存后生效。</p>
+              </div>
+              <input type="checkbox" role="switch" class="settings-switch project-tray-switch" id="formShowInTray" aria-describedby="formShowInTrayHint" checked>
+            </div>
+          </div>
+
+          <div class="modal-actions">
+            <button type="button" class="btn btn-secondary" onclick="closeProjectModal()">取消</button>
+            <button type="submit" class="btn btn-primary" id="btnSubmitProject">保存并添加</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <dialog class="modal-card settings-dialog" id="globalSettingsDialog" aria-labelledby="globalSettingsTitle" aria-describedby="globalSettingsDescription">
+    <div class="modal-header">
+      <h3 id="globalSettingsTitle">全局设置</h3>
+      <button type="button" class="close-btn" id="btnCloseSettings" aria-label="关闭全局设置" autofocus>×</button>
+    </div>
+    <div class="modal-body">
+      <p class="settings-description" id="globalSettingsDescription">管理 Cente 的全局偏好，设置立即生效。</p>
+      <div class="settings-section-title">启动设置</div>
+      <div class="settings-row">
+        <div class="settings-copy">
+          <label id="autostartLabel" for="autostartToggle">开机自动启动</label>
+          <p id="autostartDescription">登录 Windows 后自动启动 Cente，并驻留系统托盘。</p>
+        </div>
+        <input type="checkbox" role="switch" class="settings-switch" id="autostartToggle" aria-labelledby="autostartLabel" aria-describedby="autostartDescription" disabled>
+      </div>
+      <p class="settings-status" id="settingsStatus" role="status" aria-live="polite"></p>
+      <p class="settings-note">此设置仅控制 Cente 自身启动。若在 Windows 启动应用中禁用了 Cente，请在那里重新启用。</p>
+      <section class="update-section" aria-labelledby="updateTitle">
+        <h4 id="updateTitle">程序更新 <span id="currentAppVersion"></span></h4>
+        <div class="form-group">
+          <label for="updateRepository">GitHub 发布仓库</label>
+          <input id="updateRepository" class="form-control" placeholder="https://github.com/用户名/cente" autocomplete="off">
+        </div>
+        <label class="update-auto-label"><input type="checkbox" id="autoCheckUpdates"> 启动 Cente 时自动检查更新</label>
+        <div class="update-actions">
+          <button type="button" class="btn btn-outline" id="saveUpdatePreferences">保存更新设置</button>
+          <button type="button" class="btn btn-outline" id="checkUpdates">检查更新</button>
+          <button type="button" class="btn btn-primary" id="installUpdate" hidden>下载并重启更新</button>
+        </div>
+        <p id="updateStatus" class="settings-status" role="status" aria-live="polite"></p>
+        <pre id="updateNotes" class="update-notes" hidden></pre>
+        <p class="settings-note">自动检查不会自动重启。安装时会停止托管项目，更新后需手动启动项目；项目配置和日志会保留。</p>
+      </section>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" id="btnReloadSettings">重新读取</button>
+        <button type="button" class="btn btn-primary" id="btnSettingsDone">完成</button>
+      </div>
+    </div>
+  </dialog>
+
+  <script src="app.js"></script>
+</body>
+</html>
