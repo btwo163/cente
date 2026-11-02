@@ -30,13 +30,25 @@ jobs:
           "RELEASE_TAG=v$($config.version)" >> $env:GITHUB_ENV
           cargo test --locked --manifest-path src-tauri/Cargo.toml --lib -- --skip startup_entry_round_trip_in_isolated_key
           if ($LASTEXITCODE -ne 0) { throw 'Tests failed' }
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts/test-update-check.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'Update check tests failed' }
           cargo build --release --locked --manifest-path src-tauri/Cargo.toml
           if ($LASTEXITCODE -ne 0) { throw 'Build failed' }
           Copy-Item src-tauri/target/release/cente.exe cente-windows-x86_64.exe
+          $asset = Get-Item cente-windows-x86_64.exe
+          @{
+            version = $env:RELEASE_TAG
+            notes = "Cente $env:RELEASE_TAG - https://github.com/$env:GITHUB_REPOSITORY/releases/tag/$env:RELEASE_TAG"
+            url = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/$env:RELEASE_TAG/cente-windows-x86_64.exe"
+            digest = 'sha256:' + (Get-FileHash $asset.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            size = $asset.Length
+            draft = $false
+            prerelease = $false
+          } | ConvertTo-Json | Set-Content cente-update.json -Encoding utf8
       - name: Publish release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create $env:RELEASE_TAG cente-windows-x86_64.exe --target $env:GITHUB_SHA --title "Cente $env:RELEASE_TAG" --generate-notes
+          gh release create $env:RELEASE_TAG cente-windows-x86_64.exe cente-update.json --target $env:GITHUB_SHA --title "Cente $env:RELEASE_TAG" --generate-notes
           if ($LASTEXITCODE -ne 0) { throw 'Release creation failed; existing versions are not overwritten' }
