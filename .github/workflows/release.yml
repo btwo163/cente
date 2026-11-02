@@ -27,7 +27,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'cargo metadata failed' }
           if ($metadata.packages[0].version -ne $config.version) { throw 'Cargo and Tauri versions must match' }
           if ($config.version -notmatch '^\d+\.\d+\.\d+$') { throw 'A stable semantic version is required' }
-          "RELEASE_TAG=v$($config.version)" >> $env:GITHUB_ENV
+          $releaseTag = "v$($config.version)"
+          "RELEASE_TAG=$releaseTag" >> $env:GITHUB_ENV
           cargo test --locked --manifest-path src-tauri/Cargo.toml --lib -- --skip startup_entry_round_trip_in_isolated_key
           if ($LASTEXITCODE -ne 0) { throw 'Tests failed' }
           powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts/test-update-check.ps1
@@ -37,9 +38,9 @@ jobs:
           Copy-Item src-tauri/target/release/cente.exe cente-windows-x86_64.exe
           $asset = Get-Item cente-windows-x86_64.exe
           @{
-            version = $env:RELEASE_TAG
-            notes = "Cente $env:RELEASE_TAG - https://github.com/$env:GITHUB_REPOSITORY/releases/tag/$env:RELEASE_TAG"
-            url = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/$env:RELEASE_TAG/cente-windows-x86_64.exe"
+            version = $releaseTag
+            notes = "Cente $releaseTag - https://github.com/$env:GITHUB_REPOSITORY/releases/tag/$releaseTag"
+            url = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/$releaseTag/cente-windows-x86_64.exe"
             digest = 'sha256:' + (Get-FileHash $asset.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
             size = $asset.Length
             draft = $false
@@ -50,5 +51,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          $ErrorActionPreference = 'Stop'
+          $manifest = Get-Content cente-update.json -Raw | ConvertFrom-Json
+          $asset = Get-Item cente-windows-x86_64.exe
+          if ($manifest.version -ne $env:RELEASE_TAG -or $manifest.version -notmatch '^v\d+\.\d+\.\d+$') { throw 'Update manifest version mismatch' }
+          if ($manifest.url -ne "https://github.com/$env:GITHUB_REPOSITORY/releases/download/$env:RELEASE_TAG/cente-windows-x86_64.exe") { throw 'Update manifest URL mismatch' }
+          if ($manifest.size -ne $asset.Length -or $manifest.digest -ne ('sha256:' + (Get-FileHash $asset.FullName -Algorithm SHA256).Hash.ToLowerInvariant())) { throw 'Update manifest integrity mismatch' }
+          if ($asset.VersionInfo.ProductVersion -ne $manifest.version.Substring(1)) { throw 'Update binary version mismatch' }
           gh release create $env:RELEASE_TAG cente-windows-x86_64.exe cente-update.json --target $env:GITHUB_SHA --title "Cente $env:RELEASE_TAG" --generate-notes
           if ($LASTEXITCODE -ne 0) { throw 'Release creation failed; existing versions are not overwritten' }
