@@ -28,6 +28,13 @@
 
 ## 🚀 快速启动
 
+### 下载正式版（无需编译）
+从 [GitHub Releases](https://github.com/btwo163/cente/releases/latest) 下载 `cente-windows-x86_64.exe`，放入独立目录，重命名为 `cente.exe` 后双击运行。适用于 Windows x64，需要系统已安装 Edge WebView2。程序配置和日志保存在程序目录。
+
+默认更新源为 `btwo163/cente`，启动时自动检查新版；也可打开全局设置，点击“检查更新”及“下载并重启更新”。安装更新会停止托管项目，更新完成后需手动启动项目。
+
+以下启动方式用于已克隆源码的开发环境。
+
 ### 方式一：双击启动（推荐）
 在 `cente` 目录下双击运行：
 ```cmd
