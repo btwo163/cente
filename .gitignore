@@ -1,0 +1,22 @@
+# 编译产物
+src-tauri/target/
+src-tauri/gen/
+
+# 运行时数据（含本机路径，不应提交）
+log/
+cente_logs/
+cente_projects.json
+cente_projects.json.bak
+cente_projects.json.tmp
+cente_projects.json.corrupt
+
+# 本地调试输出
+err.txt
+out.txt
+
+# 可执行文件（由 build.bat 生成）
+cente.exe
+cente.previous-*.exe
+cente.exe.update-backup-*
+cente_updates.json*
+.cente-updates/
